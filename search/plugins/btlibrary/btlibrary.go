@@ -77,7 +77,13 @@ func (p plugin) SearchKey(keyword string, page int64) (ret []search.Result) {
 		log.Println("why")
 		return
 	}
-	resp1, err := httpClient.Get(fmt.Sprintf("https:%s", strings.Replace(location, "/1/", fmt.Sprintf("/%v/", page), 1)))
+	u, err := url.Parse(strings.Replace(location, "/1/", fmt.Sprintf("/%v/", page), 1))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	u.Scheme = "https"
+	resp1, err := httpClient.Get(u.String())
 	if err != nil {
 		log.Println(err)
 		return

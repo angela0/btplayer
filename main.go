@@ -88,6 +88,7 @@ func HandleFile(w http.ResponseWriter, req *http.Request) {
 	statusCode, msg := 200, "bad request"
 
 	defer func() {
+		// if ok, then http.ServeContent will do all things
 		if statusCode != 200 {
 			w.Header().Set("X-Message", msg)
 			w.WriteHeader(statusCode)
@@ -244,14 +245,26 @@ func HandleSearch(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func setCookie(w http.ResponseWriter, name, value, path string, expires time.Time) {
+	http.SetCookie(w, &http.Cookie{
+		Name:    name,
+		Value:   value,
+		Path:    path,
+		Expires: expires,
+	})
+}
+
 func handleLogin(w http.ResponseWriter, req *http.Request) {
-	msg := "Login failed, so sorry"
-	statusCode := 200
-	var login struct {
-		Username string
-		Password string
-		Id       string
-	}
+	var (
+		statusCode = 200
+		msg        = "Login failed, so sorry"
+
+		login struct {
+			Username string
+			Password string
+			Id       string
+		}
+	)
 
 	defer func() {
 		if statusCode != 200 {
@@ -260,18 +273,8 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		if req.Method == "POST" {
-			http.SetCookie(w, &http.Cookie{
-				Name:    "id",
-				Value:   login.Id,
-				Path:    "/",
-				Expires: time.Now().Add(24 * 365 * time.Hour),
-			})
-			http.SetCookie(w, &http.Cookie{
-				Name:    "name",
-				Value:   login.Username,
-				Path:    "/",
-				Expires: time.Now().Add(24 * 365 * time.Hour),
-			})
+			setCookie("id", login.Id, "/", time.Now().Add(24*365*time.Hour))
+			setCookie("name", login.Username, "/", time.Now().Add(24*365*time.Hour))
 		}
 	}()
 
@@ -279,13 +282,11 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 	if req.Method == "GET" {
 		cookie, err := req.Cookie("id")
 		if err != nil {
-			statusCode = 403
-			msg = "login expired"
+			statusCode, msg = 403, "login expired"
 			return
 		}
 		if err := userColl.Find(bson.M{"id": cookie.Value}).One(nil); err == mgo.ErrNotFound {
-			statusCode = 403
-			msg = "login expired."
+			statusCode, msg = 403, "login expired"
 			return
 		}
 		return
@@ -295,23 +296,21 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 		statusCode = 400
 		return
 	}
-
 	login.Username, login.Password = req.Form.Get("username"), req.Form.Get("password")
-	login.Id = fmt.Sprintf("%x", sha1.Sum([]byte(login.Username+login.Password+time.Now().String())))
 	if err := userColl.Find(bson.M{"username": login.Username, "password": login.Password}).One(nil); err != nil {
 		if err == mgo.ErrNotFound {
-			statusCode = 403
-			msg = "Wrong username or password"
+			statusCode, msg = 403, "Wrong username or password"
 			return
 		}
 		statusCode = 500
 		log.Println(err.Error())
 		return
 	}
+
+	login.Id = fmt.Sprintf("%x", sha1.Sum([]byte(login.Username+login.Password+time.Now().String())))
 	if err := userColl.Update(bson.M{"username": login.Username}, bson.M{"$set": bson.M{"id": login.Id, "last": time.Now().Unix(), "ip": req.Header.Get("X-Real-IP")}}); err != nil {
 		log.Println(err)
-		statusCode = 500
-		msg = "Something goes wrong, please contract administator"
+		statusCode, msg = 500, "Something goes wrong, please contracts administator"
 		return
 	}
 }
