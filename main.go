@@ -74,7 +74,7 @@ func getTorrent(hash []byte) (*torrent.Torrent, bool) {
 	return tClient.Torrent(h)
 }
 
-func handleAddMagnet(w http.ResponseWriter, req *http.Request) {
+func handleInfo(w http.ResponseWriter, req *http.Request) {
 	statusCode, msg := 200, "add failed"
 
 	defer func() {
@@ -87,6 +87,13 @@ func handleAddMagnet(w http.ResponseWriter, req *http.Request) {
 		msg = "not login"
 		return
 	}
+
+	if req.Method != "PUT" {
+		statusCode = 405
+		msg = "method not allow"
+		return
+	}
+
 	infohash := req.URL.Query().Get("hash")
 	t, err := tClient.AddMagnet(fmt.Sprintf("magnet:?xt=urn:btih:%s", infohash))
 	if err != nil {
@@ -110,32 +117,6 @@ func handleAddMagnet(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func handleDeleteMagnet(w http.ResponseWriter, req *http.Request) {
-	statusCode, msg := 200, "delete failed"
-
-	defer func() {
-		w.Header().Set("X-Message", msg)
-		w.WriteHeader(statusCode)
-	}()
-
-	if !checkLogin(req) {
-		statusCode = 403
-		msg = "not login"
-		return
-	}
-	infohash := req.URL.Query().Get("hash")
-	username, _ := req.Cookie("name")
-	if err := userColl.Update(bson.M{"username": username.Value, "hashes": infohash}, bson.M{"$pull": bson.M{"hashes": infohash}}); err != nil {
-		if err == mgo.ErrNotFound {
-			statusCode, msg = 400, "fuck infohash"
-			return
-		}
-		log.Println(err)
-		statusCode, msg = 500, "sorry, you can't do that now, please retry"
-		return
-	}
-}
-
 func handleInfos(w http.ResponseWriter, req *http.Request) {
 	var (
 		ret struct {
@@ -149,11 +130,11 @@ func handleInfos(w http.ResponseWriter, req *http.Request) {
 	)
 
 	defer func() {
-		if statusCode != 200 {
-			w.Header().Set("X-Message", msg)
-		}
+		w.Header().Set("X-Message", msg)
 		w.WriteHeader(statusCode)
-		w.Write(jsonRet)
+		if req.Method == "GET" {
+			w.Write(jsonRet)
+		}
 	}()
 
 	if !checkLogin(req) {
@@ -161,22 +142,39 @@ func handleInfos(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	switch infoTypes := req.URL.Query().Get("type"); infoTypes {
-	case "all":
-	default:
-		username, _ := req.Cookie("name")
-		if err = userColl.Find(bson.M{"username": username.Value}).One(&ret); err != nil {
+	switch req.Method {
+	case GET:
+		switch infoTypes := req.URL.Query().Get("type"); infoTypes {
+		case "all":
+		default:
+			username, _ := req.Cookie("name")
+			if err = userColl.Find(bson.M{"username": username.Value}).One(&ret); err != nil {
+				log.Println(err)
+				statusCode, msg = 500, "something goes wrong, please contacts administator"
+				return
+			}
+			ret.PageTotal = len(ret.Hashes)
+		}
+		if jsonRet, err = json.Marshal(ret); err != nil {
 			log.Println(err)
 			statusCode, msg = 500, "something goes wrong, please contacts administator"
 			return
 		}
-		ret.PageTotal = len(ret.Hashes)
+
+	case DELETE:
+		infohash := req.URL.Query().Get("hash")
+		username, _ := req.Cookie("name")
+		if err := userColl.Update(bson.M{"username": username.Value, "hashes": infohash}, bson.M{"$pull": bson.M{"hashes": infohash}}); err != nil {
+			if err == mgo.ErrNotFound {
+				statusCode, msg = 400, "fuck infohash"
+				return
+			}
+			log.Println(err)
+			statusCode, msg = 500, "sorry, you can't do that now, please retry"
+			return
+		}
 	}
-	if jsonRet, err = json.Marshal(ret); err != nil {
-		log.Println(err)
-		statusCode, msg = 500, "something goes wrong, please contacts administator"
-		return
-	}
+
 }
 
 func handleFile(w http.ResponseWriter, req *http.Request) {
@@ -492,7 +490,7 @@ func main() {
 
 	http.HandleFunc("/login", handleLogin)
 	http.HandleFunc("/logout", handleLogout)
-	http.HandleFunc("/info", handleAddMagnet)
+	http.HandleFunc("/info", handleInfo)
 	http.HandleFunc("/infos", handleInfos)
 	http.HandleFunc("/search", handleSearch)
 	http.HandleFunc("/file", handleFile)
