@@ -143,7 +143,7 @@ func handleInfos(w http.ResponseWriter, req *http.Request) {
 	}
 
 	switch req.Method {
-	case GET:
+	case "GET":
 		switch infoTypes := req.URL.Query().Get("type"); infoTypes {
 		case "all":
 		default:
@@ -161,7 +161,7 @@ func handleInfos(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-	case DELETE:
+	case "DELETE":
 		infohash := req.URL.Query().Get("hash")
 		username, _ := req.Cookie("name")
 		if err := userColl.Update(bson.M{"username": username.Value, "hashes": infohash}, bson.M{"$pull": bson.M{"hashes": infohash}}); err != nil {
@@ -462,8 +462,6 @@ func main() {
 	config.CookieExpires = time.Hour * 24 * 30
 	config.DownloadDir = "download"
 	// end init config
-
-	search.Init()
 
 	if session, err = mgo.Dial(config.DBUrl); err != nil {
 		log.Fatal(err)

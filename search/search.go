@@ -1,9 +1,8 @@
 package search
 
 import (
-	"fmt"
-	"log"
-	"plugin"
+	"net/http"
+	"time"
 )
 
 type Result struct {
@@ -19,26 +18,29 @@ type SearchType interface {
 	SearchKey(string, int64) []Result
 }
 
-var searchPlugin = struct {
-	Path    string
-	Plugins []string
-}{
-	"search/plugins",
-	[]string{"btlibrary"},
+var searchPlugin = []string{
+	"idope",
+	"btlibrary",
 }
 
 var plugins []SearchType
 
-func Init() {
-	for _, v := range searchPlugin.Plugins {
-		if _, err := plugin.Open(fmt.Sprintf("%s/%s/%s.so", searchPlugin.Path, v, v)); err != nil {
-			log.Fatal(err)
-		}
-	}
-}
-
-func Register(p SearchType) {
-	plugins = append(plugins, p)
+func init() {
+	plugins = append(plugins,
+		&Idope{
+			Name:       "idope",
+			HttpClient: http.DefaultClient,
+		},
+		&BTLibrary{
+			Name: "btlibrary",
+			HttpClient: &http.Client{
+				Timeout: 5 * time.Second,
+				CheckRedirect: func(req *http.Request, via []*http.Request) error {
+					return http.ErrUseLastResponse
+				},
+			},
+		},
+	)
 }
 
 func Search(keyword string, page int64) (ret []Result) {

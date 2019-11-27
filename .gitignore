@@ -1,3 +1,5 @@
 btplayer
 .torrent.bolt.db
 *.so
+download/
+go.sum
