@@ -2,7 +2,6 @@ package search
 
 import (
 	"net/http"
-	"time"
 )
 
 type Result struct {
@@ -20,7 +19,6 @@ type SearchType interface {
 
 var searchPlugin = []string{
 	"idope",
-	"btlibrary",
 }
 
 var plugins []SearchType
@@ -31,15 +29,15 @@ func init() {
 			Name:       "idope",
 			HttpClient: http.DefaultClient,
 		},
-		&BTLibrary{
-			Name: "btlibrary",
-			HttpClient: &http.Client{
-				Timeout: 5 * time.Second,
-				CheckRedirect: func(req *http.Request, via []*http.Request) error {
-					return http.ErrUseLastResponse
-				},
-			},
-		},
+		// &BTLibrary{
+		// 	Name: "btlibrary",
+		// 	HttpClient: &http.Client{
+		// 		Timeout: 5 * time.Second,
+		// 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		// 			return http.ErrUseLastResponse
+		// 		},
+		// 	},
+		// },
 	)
 }
 

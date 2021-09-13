@@ -1,0 +1,10 @@
+{
+    "user": [
+        {
+            "name": "btplayer",
+            "password": "nopassword"
+        }
+    ],
+    "expires": 86400,
+    "location": "/tmp/btp-download"
+}
